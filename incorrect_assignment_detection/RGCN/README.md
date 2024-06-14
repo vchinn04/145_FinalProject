@@ -1,4 +1,4 @@
-# GCN 
+# RGCN 
 
 ## Running Steps
 

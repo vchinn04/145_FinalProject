@@ -11,6 +11,10 @@ import logging
 from torch.optim.lr_scheduler import _LRScheduler
 from models import  GCNModel
 from utils import *
+from tqdm import tqdm
+import numpy as np
+import torch
+import torch.nn.functional as F
 torch.backends.cudnn.benchmark = True
 torch.autograd.set_detect_anomaly(True)
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -75,15 +79,6 @@ class WarmupLinearLR(_LRScheduler):
                 ret.append(tmp_min_lr + max(0, (tmp_base_lr - tmp_min_lr) * (self.step_size - self._step_count) / (self.step_size - self.peak_step)))
         return ret
 
-def get_n_params(model):
-    pp=0
-    for p in list(model.parameters()):
-        nn=1
-        for s in list(p.size()):
-            nn = nn*s
-        pp += nn
-    return pp
-
 if __name__ == "__main__":
     args = argparse.ArgumentParser()
     args = add_arguments(args)
@@ -92,7 +87,7 @@ if __name__ == "__main__":
     logger.info(args)
     os.makedirs(os.path.join(os.getcwd(), args.saved_dir), exist_ok = True)
 
-    encoder = GCNModel(args.input_dim,args.output_dim) #.cuda()
+    encoder = GCNModel(args.input_dim,args.output_dim)#.cuda()
     criterion = nn.MSELoss()
 
     with open(args.train_dir, 'rb') as files:
@@ -107,7 +102,6 @@ if __name__ == "__main__":
         train_data = train_data[:int(len(train_data)*0.7)]
 
     logger.info("# Batch: {} - {}".format(len(train_data), len(train_data) / args.bs))
-    print("HERE: ", get_n_params(encoder))
     optimizer = torch.optim.Adam([{'params': encoder.parameters(), 'lr': args.lr}])
     optimizer.zero_grad()
 
@@ -132,7 +126,7 @@ if __name__ == "__main__":
         for tmp_train in tqdm(train_data):
             batch_index += 1
             batch_data, _,_,_ = tmp_train
-            batch_data = batch_data #.cuda()
+            batch_data = batch_data#.cuda()
             node_outputs, adj_matrix, adj_weight, labels, batch_item = batch_data.x, batch_data.edge_index, batch_data.edge_attr.squeeze(-1), batch_data.y.float(), batch_data.batch
             if args.threshold > 0:
                 flag = adj_weight[:,1:]<args.threshold
@@ -147,8 +141,8 @@ if __name__ == "__main__":
                 adj_weight = adj_weight[:,0]
             flag = torch.nonzero(adj_weight).squeeze(-1)
             adj_matrix = adj_matrix.T[flag].T
-            # print(labels)
-            logit = encoder(node_outputs, adj_matrix)
+            
+            logit = encoder(node_outputs, adj_matrix, batch_item)
             logit = logit.squeeze(-1)
             loss = criterion(logit, labels)
             
@@ -159,7 +153,9 @@ if __name__ == "__main__":
                 optimizer.step()
                 scheduler.step()
         avg_batch_loss = np.mean(np.array(batch_loss))
-        logger.info("Epoch:{} Overall loss: {:.6f} ".format(epoch_num, avg_batch_loss))        
+        logger.info("Epoch:{} Overall loss: {:.6f} ".format(epoch_num, avg_batch_loss))
+
+    #model = GCNModel(num_features=args.input_dim, hidden_channels=args.output_dim).cuda()            
         
         if (epoch_num + 1) % args.verbose == 0:
             encoder.eval()
@@ -173,7 +169,7 @@ if __name__ == "__main__":
             with torch.no_grad():
                 for tmp_test in tqdm(eval_data):
                     each_sub, _,_ , _ = tmp_test
-                    each_sub = each_sub #.cuda()
+                    each_sub = each_sub#.cuda()
                     node_outputs, adj_matrix, adj_weight, labels, batch_item = each_sub.x, each_sub.edge_index, each_sub.edge_attr.squeeze(-1), each_sub.y.float(), each_sub.batch
                     
                     if args.threshold > 0:
@@ -190,7 +186,7 @@ if __name__ == "__main__":
                     flag = torch.nonzero(adj_weight).squeeze(-1)
                     adj_matrix = adj_matrix.T[flag].T                    
                     
-                    logit = encoder(node_outputs, adj_matrix)
+                    logit = encoder(node_outputs, adj_matrix, batch_item)
                     logit = logit.squeeze(-1)
                     loss = criterion(logit, labels)
 
@@ -233,7 +229,7 @@ if __name__ == "__main__":
             for tmp_test in tqdm(test_data):
 
                 each_sub, _ , author_id, pub_id  = tmp_test
-                each_sub = each_sub #.cuda()
+                each_sub = each_sub#.cuda()
                 node_outputs, adj_matrix, adj_weight, batch_item = each_sub.x, each_sub.edge_index, each_sub.edge_attr.squeeze(-1), each_sub.batch
                 
                 if args.threshold > 0:
@@ -252,7 +248,7 @@ if __name__ == "__main__":
                 adj_weight = adj_weight[flag]
                 # edge_labels = edge_labels[flag]
 
-                logit = encoder(node_outputs,adj_matrix)
+                logit = encoder(node_outputs,adj_matrix, batch_item)
                 logit = logit.squeeze(-1)
 
                 result[author_id] = {}

@@ -1,3 +1,6 @@
+# Notes from Students 
+This branch contains the implementations for the Heterogeneous Graph methods and pre-processing script. Please look at the other branches for the other improvement methods our team tried out. 
+
 # whoiswho-top-solutions
 This repository contains top solutions from [WhoIsWho](http://whoiswho.biendata.xyz/), the world’s largest manually-labeled name disambiguation benchmark.
 

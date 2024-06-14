@@ -52,6 +52,7 @@ incorrect_assignment_detection/*/*.pkl
 incorrect_assignment_detection/*/dataset/
 incorrect_assignment_detection/*/dataset_raw/
 incorrect_assignment_detection/dataset_raw/
+incorrect_assignment_detection/dataset/
 
 incorrect_assignment_detection/log
 

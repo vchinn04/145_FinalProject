@@ -9,7 +9,7 @@ import json
 import pickle
 import logging
 from torch.optim.lr_scheduler import _LRScheduler
-from models import  GCNModel
+from models import  RGCNModel
 from utils import *
 torch.backends.cudnn.benchmark = True
 torch.autograd.set_detect_anomaly(True)
@@ -92,7 +92,7 @@ if __name__ == "__main__":
     logger.info(args)
     os.makedirs(os.path.join(os.getcwd(), args.saved_dir), exist_ok = True)
 
-    encoder = GCNModel(args.input_dim,args.output_dim) #.cuda()
+    encoder = RGCNModel(args.input_dim,args.output_dim) #.cuda()
     criterion = nn.MSELoss()
 
     with open(args.train_dir, 'rb') as files:
@@ -134,8 +134,6 @@ if __name__ == "__main__":
             batch_data, _,author_id,_ = tmp_train
             batch_data = batch_data #.cuda()
             node_outputs, adj_matrix, adj_weight, labels, batch_item, hetero_data = batch_data.x, batch_data.edge_index, batch_data.edge_attr.squeeze(-1), batch_data.y.float(), batch_data.batch, batch_data.het_data
-            # print(hetero_data["papers", "coauthor", "papers"])
-
             
             coorg_idx = hetero_data["papers", "coorg", "papers"].x
             coauth_idx = hetero_data["papers", "coauthor", "papers"].x
@@ -160,12 +158,6 @@ if __name__ == "__main__":
             het_edge_idx = torch.cat((coorg_idx, coauth_idx, covenue_idx), 1)
             het_edge_type = torch.cat((coorg_et, coauth_et, covenue_et))
 
-            # print(coorg_idx.shape, coauth_idx.shape, covenue_idx.shape, het_edge_idx.shape)
-            # print(het_edge_type.shape)
-            # if (het_edge_idx.shape[0] <= 0):
-            #     print("SKIPPING AUTHOR: ", author_id)
-            #     continue
-            
             if args.threshold > 0:
                 flag = adj_weight[:,1:]<args.threshold
                 adj_weight[:,1:] = torch.where(flag,torch.tensor(0.0),adj_weight[:,1:])
@@ -180,16 +172,13 @@ if __name__ == "__main__":
             flag = torch.nonzero(adj_weight).squeeze(-1)
             adj_matrix = adj_matrix.T[flag].T
 
+            # If edge index is empty, assign it self edges and set their edge type or be CoOrg (0)
             if (het_edge_idx.shape[0] <= 0):
                 het_edge_idx = adj_matrix
                 het_edge_type = torch.zeros(het_edge_idx.shape[1],  dtype=torch.int64) 
-            # print(labels)
-            # logit = encoder(node_outputs, adj_matrix)
+
             logit = encoder(hetero_data["papers"].x, het_edge_idx, het_edge_type)
-
             logit = logit.squeeze(-1)
-            # print("TRAIN: ",hetero_data["papers"].x.shape,  logit.shape, labels.shape)
-
             loss = criterion(logit, labels)
             
             batch_loss.append(loss.item())
@@ -238,11 +227,6 @@ if __name__ == "__main__":
                     het_edge_idx = torch.cat((coorg_idx, coauth_idx, covenue_idx), 1)
                     het_edge_type = torch.cat((coorg_et, coauth_et, covenue_et))
 
-                    # print(coorg_idx.shape, coauth_idx.shape, covenue_idx.shape, het_edge_idx.shape)
-                    # print(het_edge_type.shape)
-                    # if (het_edge_idx.shape[0] <= 0):
-                    #     continue
-
                     if args.threshold > 0:
                         flag = adj_weight[:,1:]<args.threshold
                         adj_weight[:,1:] = torch.where(flag,torch.tensor(0.0),adj_weight[:,1:])
@@ -260,11 +244,9 @@ if __name__ == "__main__":
                     if (het_edge_idx.shape[0] <= 0):
                         het_edge_idx = adj_matrix
                         het_edge_type = torch.zeros(het_edge_idx.shape[1],  dtype=torch.int64) 
-                    # logit = encoder(node_outputs, adj_matrix)
-                    logit = encoder(hetero_data["papers"].x, het_edge_idx, het_edge_type)
 
+                    logit = encoder(hetero_data["papers"].x, het_edge_idx, het_edge_type)
                     logit = logit.squeeze(-1)
-                    # print(hetero_data["papers"].x.shape, logit.shape, labels.shape)
                     loss = criterion(logit, labels)
 
                     scores = logit.detach().cpu().numpy()
@@ -331,11 +313,6 @@ if __name__ == "__main__":
                 het_edge_idx = torch.cat((coorg_idx, coauth_idx, covenue_idx), 1)
                 het_edge_type = torch.cat((coorg_et, coauth_et, covenue_et))
 
-                # print(coorg_idx.shape, coauth_idx.shape, covenue_idx.shape, het_edge_idx.shape)
-                # print(het_edge_type.shape)
-
-                    # continue
-
                 if args.threshold > 0:
                     flag = adj_weight[:,1:]<args.threshold
                     adj_weight[:,1:] = torch.where(flag,torch.tensor(0.0),adj_weight[:,1:])
@@ -350,7 +327,6 @@ if __name__ == "__main__":
                 flag = torch.nonzero(adj_weight).squeeze(-1)
                 adj_matrix = adj_matrix.T[flag].T
                 adj_weight = adj_weight[flag]
-                # edge_labels = edge_labels[flag]
 
                 if (het_edge_idx.shape[0] <= 0):
                     print("SKIPPING RES AUTHOR: ", author_id)
@@ -360,9 +336,7 @@ if __name__ == "__main__":
                     het_edge_idx = adj_matrix
                     het_edge_type = torch.zeros(het_edge_idx.shape[1],  dtype=torch.int64)
 
-                # logit = encoder(node_outputs,adj_matrix)
                 logit = encoder(hetero_data["papers"].x, het_edge_idx, het_edge_type)
-
                 logit = logit.squeeze(-1)
 
                 result[author_id] = {}

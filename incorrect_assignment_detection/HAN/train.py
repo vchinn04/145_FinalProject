@@ -9,7 +9,7 @@ import json
 import pickle
 import logging
 from torch.optim.lr_scheduler import _LRScheduler
-from models import  GCNModel
+from models import  HANModel
 from utils import *
 torch.backends.cudnn.benchmark = True
 torch.autograd.set_detect_anomaly(True)
@@ -92,8 +92,6 @@ if __name__ == "__main__":
     logger.info(args)
     os.makedirs(os.path.join(os.getcwd(), args.saved_dir), exist_ok = True)
 
-    encoder = GCNModel(args.input_dim,args.output_dim) #.cuda()
-    criterion = nn.MSELoss()
 
     with open(args.train_dir, 'rb') as files:
         train_data = pickle.load(files)
@@ -105,6 +103,11 @@ if __name__ == "__main__":
         random.shuffle(train_data)
         eval_data = train_data[int(len(train_data)*0.7):]
         train_data = train_data[:int(len(train_data)*0.7)]
+
+    bd, _, _,_ = train_data[0]
+    print("METADATA: ", bd.het_data.metadata())
+    encoder = HANModel(args.input_dim,args.output_dim, bd.het_data.metadata()) #.cuda()
+    criterion = nn.MSELoss()
 
     logger.info("# Batch: {} - {}".format(len(train_data), len(train_data) / args.bs))
     print("HERE: ", get_n_params(encoder))
@@ -131,9 +134,20 @@ if __name__ == "__main__":
         random.shuffle(train_data)
         for tmp_train in tqdm(train_data):
             batch_index += 1
-            batch_data, _,_,_ = tmp_train
+            batch_data, _,author_id,_ = tmp_train
             batch_data = batch_data #.cuda()
-            node_outputs, adj_matrix, adj_weight, labels, batch_item = batch_data.x, batch_data.edge_index, batch_data.edge_attr.squeeze(-1), batch_data.y.float(), batch_data.batch
+            node_outputs, adj_matrix, adj_weight, labels, batch_item, hetero_data = batch_data.x, batch_data.edge_index, batch_data.edge_attr.squeeze(-1), batch_data.y.float(), batch_data.batch, batch_data.het_data
+            
+            coorg_idx = hetero_data["papers", "coorg", "papers"].x
+            coauth_idx = hetero_data["papers", "coauthor", "papers"].x
+            covenue_idx = hetero_data["papers", "covenue", "papers"].x
+
+
+            x_dict = {
+                "papers": hetero_data["papers"].x
+            }
+
+            
             if args.threshold > 0:
                 flag = adj_weight[:,1:]<args.threshold
                 adj_weight[:,1:] = torch.where(flag,torch.tensor(0.0),adj_weight[:,1:])
@@ -148,7 +162,24 @@ if __name__ == "__main__":
             flag = torch.nonzero(adj_weight).squeeze(-1)
             adj_matrix = adj_matrix.T[flag].T
 
-            logit = encoder(node_outputs, adj_matrix)
+            # If index is empty, assing the self edges to it
+            if (coorg_idx.shape[0] <= 0):
+                coorg_idx = adj_matrix 
+
+            if (coauth_idx.shape[0] <= 0):
+                coauth_idx = adj_matrix 
+
+            if (covenue_idx.shape[0] <= 0):
+                covenue_idx = adj_matrix 
+
+            ei_dict = {
+                ("papers", "coorg", "papers"): coorg_idx,
+                ("papers", "coauthor", "papers"): coauth_idx,
+                ("papers", "covenue", "papers"): covenue_idx
+            }
+
+
+            logit = encoder(x_dict, ei_dict)
             logit = logit.squeeze(-1)
             loss = criterion(logit, labels)
             
@@ -174,8 +205,16 @@ if __name__ == "__main__":
                 for tmp_test in tqdm(eval_data):
                     each_sub, _,_ , _ = tmp_test
                     each_sub = each_sub #.cuda()
-                    node_outputs, adj_matrix, adj_weight, labels, batch_item = each_sub.x, each_sub.edge_index, each_sub.edge_attr.squeeze(-1), each_sub.y.float(), each_sub.batch
+                    node_outputs, adj_matrix, adj_weight, labels, batch_item, hetero_data = each_sub.x, each_sub.edge_index, each_sub.edge_attr.squeeze(-1), each_sub.y.float(), each_sub.batch, each_sub.het_data
                     
+                    coorg_idx = hetero_data["papers", "coorg", "papers"].x
+                    coauth_idx = hetero_data["papers", "coauthor", "papers"].x
+                    covenue_idx = hetero_data["papers", "covenue", "papers"].x
+
+                    x_dict = {
+                        "papers": hetero_data["papers"].x
+                    }
+
                     if args.threshold > 0:
                         flag = adj_weight[:,1:]<args.threshold
                         adj_weight[:,1:] = torch.where(flag,torch.tensor(0.0),adj_weight[:,1:])
@@ -188,9 +227,25 @@ if __name__ == "__main__":
                     else:
                         adj_weight = adj_weight[:,0]
                     flag = torch.nonzero(adj_weight).squeeze(-1)
-                    adj_matrix = adj_matrix.T[flag].T                    
-                    
-                    logit = encoder(node_outputs, adj_matrix)
+                    adj_matrix = adj_matrix.T[flag].T       
+
+                    if (coorg_idx.shape[0] <= 0):
+                        coorg_idx = adj_matrix 
+        
+
+                    if (coauth_idx.shape[0] <= 0):
+                        coauth_idx = adj_matrix
+
+                    if (covenue_idx.shape[0] <= 0):
+                        covenue_idx = adj_matrix 
+                        
+                    ei_dict = {
+                        ("papers", "coorg", "papers"): coorg_idx,
+                        ("papers", "coauthor", "papers"): coauth_idx,
+                        ("papers", "covenue", "papers"): covenue_idx
+                    }
+
+                    logit = encoder(x_dict, ei_dict) 
                     logit = logit.squeeze(-1)
                     loss = criterion(logit, labels)
 
@@ -234,8 +289,17 @@ if __name__ == "__main__":
 
                 each_sub, _ , author_id, pub_id  = tmp_test
                 each_sub = each_sub #.cuda()
-                node_outputs, adj_matrix, adj_weight, batch_item = each_sub.x, each_sub.edge_index, each_sub.edge_attr.squeeze(-1), each_sub.batch
+                node_outputs, adj_matrix, adj_weight, batch_item, hetero_data = each_sub.x, each_sub.edge_index, each_sub.edge_attr.squeeze(-1), each_sub.batch, each_sub.het_data
                 
+                coorg_idx = hetero_data["papers", "coorg", "papers"].x
+                coauth_idx = hetero_data["papers", "coauthor", "papers"].x
+                covenue_idx = hetero_data["papers", "covenue", "papers"].x
+
+
+                x_dict = {
+                    "papers": hetero_data["papers"].x
+                }
+
                 if args.threshold > 0:
                     flag = adj_weight[:,1:]<args.threshold
                     adj_weight[:,1:] = torch.where(flag,torch.tensor(0.0),adj_weight[:,1:])
@@ -251,7 +315,22 @@ if __name__ == "__main__":
                 adj_matrix = adj_matrix.T[flag].T
                 adj_weight = adj_weight[flag]
 
-                logit = encoder(node_outputs,adj_matrix)
+                if (coorg_idx.shape[0] <= 0):
+                    coorg_idx = adj_matrix 
+
+                if (coauth_idx.shape[0] <= 0):
+                    coauth_idx = adj_matrix 
+
+                if (covenue_idx.shape[0] <= 0):
+                    covenue_idx = adj_matrix 
+
+                ei_dict = {
+                    ("papers", "coorg", "papers"): coorg_idx,
+                    ("papers", "coauthor", "papers"): coauth_idx,
+                    ("papers", "covenue", "papers"): covenue_idx
+                }
+
+                logit = encoder(x_dict, ei_dict)
                 logit = logit.squeeze(-1)
 
                 result[author_id] = {}

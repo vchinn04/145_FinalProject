@@ -126,11 +126,11 @@ def co_occurance(core_name, paper1, paper2):
     return matched, coauthor_weight, coorg_weight, covenue_weight
 
 def getdata(orcid):
-    with open("../dataset_raw/papers_info_dump.pkl", "rb") as f:
+    with open("../dataset/papers_info_dump.pkl", "rb") as f:
         papers_info = pk.load(f)
-    with open("../dataset_raw/dic_paper_embedding_dump.pkl", "rb") as f:
+    with open("../dataset/dic_paper_embedding_dump.pkl", "rb") as f:
         dic_paper_embedding = pk.load(f)
-    with open("../dataset_raw/author_names_dump.pkl", "rb") as f:
+    with open("../dataset/author_names_dump.pkl", "rb") as f:
         author_names = pk.load(f)
 
     trainset = True 
@@ -147,7 +147,6 @@ def getdata(orcid):
     coorg_matrix = [] 
     covenue_matrix = [] 
 
-    print("EXTRACTED DATA", flush = True)
     for ii in range(len(all_pappers_id)):
         paper1_id = all_pappers_id[ii]
         for jj in range(len(all_pappers_id)):
@@ -157,12 +156,11 @@ def getdata(orcid):
             
             paper1_inf = papers_info[paper1_id]
             paper2_inf = papers_info[paper2_id]
-            # print("FETCHING PAPER EDGES", flush = True)
+
             _, w_coauthor, w_coorg, w_covenue = co_occurance(author_names[orcid]['name'], paper1_inf, paper2_inf)
             if w_coauthor + w_coorg + w_covenue == 0:
                 continue
             else:
-                # print("CO AUTHOR: ", w_coauthor, " CO ORG: ", w_coorg, " CO VENUE: ", w_covenue, flush = True)
                 total_matrix.append([paper1_id, paper2_id])
                 if (w_coauthor > 0):
                     coauthor_matrix.append([paper1_id, paper2_id])
@@ -177,7 +175,7 @@ def getdata(orcid):
                 total_weight.append([w_coauthor , w_coorg , w_covenue])
 
     num_papers = len(all_pappers_id)
-    print("RENUMBERING", flush = True)
+
     # re-numbering
     re_num = dict(zip(all_pappers_id, list(range(num_papers))))
     # edge_index
@@ -203,11 +201,6 @@ def getdata(orcid):
 
     # features
     list_x = [dic_paper_embedding[x] for x in all_pappers_id]
-    # list_x_incorrect = [dic_paper_embedding[x] for x in outliers_id]
-    # list_x_correct = [dic_paper_embedding[x] for x in normal_papers_id]
-
-    # features_incorrect = np.stack(list_x_incorrect)
-    # features_correct = np.stack(list_x_correct)
 
     features = np.stack(list_x)
     
@@ -239,15 +232,11 @@ def getdata(orcid):
     #build data
     hdata = HeteroData()
     hdata["papers"].x = torch.tensor(features, dtype=torch.float32)
-    # hdata["incpapers"].x = torch.tensor(features_incorrect, dtype=torch.float32)
 
     hdata["papers", "coorg", "papers"].x = torch.tensor(coauthor_index)
     hdata["papers", "coauthor", "papers"].x = torch.tensor(coorg_index)
     hdata["papers", "covenue", "papers"].x = torch.tensor(covenue_index)
 
-    # hdata["papers", "coorg", "incpapers"].x = torch.tensor(edge_index)
-    # hdata["papers", "coauthor", "incpapers"].x = torch.tensor(edge_index)
-    # hdata["papers", "covenue", "incpapers"].x = torch.tensor(edge_index)
     hdata = T.ToUndirected()(hdata)
 
     data = Batch(
@@ -331,10 +320,10 @@ def norm(data):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--author_dir', type=str, default='../dataset_raw/ind_valid_author.json')
-    parser.add_argument('--pub_dir', type=str, default='../dataset_raw/pid_to_info_all.json')
-    parser.add_argument('--save_dir', type=str, default='../dataset_raw/valid.pkl')
-    parser.add_argument('--embeddings_dir', type=str, default='../dataset_raw/roberta_embeddings.pkl')
+    parser.add_argument('--author_dir', type=str, default='../dataset/ind_valid_author.json')
+    parser.add_argument('--pub_dir', type=str, default='../dataset/pid_to_info_all.json')
+    parser.add_argument('--save_dir', type=str, default='../dataset/valid.pkl')
+    parser.add_argument('--embeddings_dir', type=str, default='../dataset/roberta_embeddings.pkl')
     args = parser.parse_args()  
     with open(args.pub_dir, "r", encoding = "utf-8") as f:
         papers_info = js.load(f)
@@ -343,21 +332,21 @@ if __name__ == "__main__":
     with mp.Pool(processes=10) as pool:
         results = pool.map(norm,[value for _,value  in papers_info.items()])
     papers_info = {k:v for k,v in zip(papers_info.keys(),results)}
-    with open("../dataset_raw/papers_info_dump.pkl", "wb") as f:
+    with open("../dataset/papers_info_dump.pkl", "wb") as f:
         pk.dump(papers_info, f)
 
     print('done clean pubs')
     
     with open(args.embeddings_dir, "rb") as f:
         dic_paper_embedding = pk.load(f)
-    with open("../dataset_raw/dic_paper_embedding_dump.pkl", "wb") as f:
+    with open("../dataset/dic_paper_embedding_dump.pkl", "wb") as f:
         pk.dump(dic_paper_embedding, f)
     print('done loading embeddings')
 
     #train
     with open(args.author_dir, "r", encoding="utf-8") as f:
         author_names = js.load(f)
-    with open("../dataset_raw/author_names_dump.pkl", "wb") as f:
+    with open("../dataset/author_names_dump.pkl", "wb") as f:
         pk.dump(author_names, f)
 
     build_dataset(args.save_dir)

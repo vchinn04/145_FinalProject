@@ -1,5 +1,8 @@
 # Incorrect Assignment Detection
 
+## Notes 
+Currently the GPU is disabled for GCN, RGCN, HGT, and HAN. In order to utilize the gpu, please uncomment the lines in the code including ```.cuda()``` calls, etc. 
+
 ## Prerequisites
 - Linux
 - Python 3.10
@@ -11,6 +14,9 @@
 
 Clone this repo.
 
+CD into the directory of the model you wish to use and install the requirements.
+
+Examples: 
 ```bash
 git clone https://github.com/THUDM/whoiswho-top-solutions.git
 cd whoiswho-top-solutions/incorrect_assignment_detection
@@ -42,15 +48,15 @@ We provide three baselines: [GCN](https://arxiv.org/abs/1609.02907), [GCCAD](htt
 ```bash
 export CUDA_VISIBLE_DEVICES='?'  # specify which GPU(s) to be used
 
-# Method 1 & 2: GCN & GCCAD
-cd GCCAD  # or ``cd GCN``
+# Methods 1 - 5: RGCN & HAN & HGT & GCN & GCCAD
+cd RGCN  # or ```cd HAN``` or ```cd HGT``` or ``cd GCN`` or ```cd GCCAD```
 python encoding.py --path ../dataset/pid_to_info_all.json --save_path ../dataset/roberta_embeddings.pkl
 python build_graph.py --author_dir ../dataset/train_author.json  --save_dir ../dataset/train.pkl
 python build_graph.py
 python train.py  --train_dir ../dataset/train.pkl  --test_dir ../dataset/valid.pkl
 
 
-# Method 3: ChatGLM (Test Environment: 8 * A100)
+# Method 6: ChatGLM (Test Environment: 8 * A100)
 cd ChatGLM
 bash train.sh
 accelerate launch --num_processes 8 inference.py --lora_path your_lora_path --model_path your_model_path --pub_path  ../dataset/pid_to_info_all.json --eval_path ../dataset/ind_valid_author.json  # multi-GPU
@@ -61,6 +67,9 @@ python inference.py --lora_path your_lora_checkpoint --model_path path_to_chatgl
 
 |  Method  | AUC   |
 |-------|-------|
+| RGCN  | 0.667 |
+| HAN  | 0.640 |
+| HGT  | N/A |
 | GCN  | 0.58625 |
 | GCCAD | 0.63451 |
 | ChatGLM  | 0.71385 |

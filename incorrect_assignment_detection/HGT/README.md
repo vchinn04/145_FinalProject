@@ -1,4 +1,4 @@
-# GCN 
+# HGT 
 
 ## Running Steps
 

@@ -1,4 +1,4 @@
-# GCN 
+# HAN 
 
 ## Running Steps
 

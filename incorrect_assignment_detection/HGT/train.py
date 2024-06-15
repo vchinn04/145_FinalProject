@@ -137,7 +137,6 @@ if __name__ == "__main__":
             batch_data, _,author_id,_ = tmp_train
             batch_data = batch_data #.cuda()
             node_outputs, adj_matrix, adj_weight, labels, batch_item, hetero_data = batch_data.x, batch_data.edge_index, batch_data.edge_attr.squeeze(-1), batch_data.y.float(), batch_data.batch, batch_data.het_data
-            # print(hetero_data["papers", "coauthor", "papers"])
 
             
             coorg_idx = hetero_data["papers", "coorg", "papers"].x

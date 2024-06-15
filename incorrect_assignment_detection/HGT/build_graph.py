@@ -28,7 +28,6 @@ stopwords_check = ['a', 'was', 'were', 'that', '2', 'key', '1', 'technology', '0
 
 
 def clean_name(name):
-    # print(name)
     name = unidecode(name)
     name = name.lower()
     new_name = ""

@@ -107,7 +107,7 @@ if __name__ == "__main__":
         train_data = train_data[:int(len(train_data)*0.7)]
 
     logger.info("# Batch: {} - {}".format(len(train_data), len(train_data) / args.bs))
-    print("HERE: ", get_n_params(encoder))
+
     optimizer = torch.optim.Adam([{'params': encoder.parameters(), 'lr': args.lr}])
     optimizer.zero_grad()
 
@@ -329,10 +329,6 @@ if __name__ == "__main__":
                 adj_weight = adj_weight[flag]
 
                 if (het_edge_idx.shape[0] <= 0):
-                    print("SKIPPING RES AUTHOR: ", author_id)
-                    print(adj_matrix)
-                    print(coorg_idx, coauth_idx,  covenue_idx, het_edge_idx)
-                    print(het_edge_idx)
                     het_edge_idx = adj_matrix
                     het_edge_type = torch.zeros(het_edge_idx.shape[1],  dtype=torch.int64)
 

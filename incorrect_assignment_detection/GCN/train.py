@@ -107,7 +107,6 @@ if __name__ == "__main__":
         train_data = train_data[:int(len(train_data)*0.7)]
 
     logger.info("# Batch: {} - {}".format(len(train_data), len(train_data) / args.bs))
-    print("HERE: ", get_n_params(encoder))
     optimizer = torch.optim.Adam([{'params': encoder.parameters(), 'lr': args.lr}])
     optimizer.zero_grad()
 
